@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Tado Demo</title>
+        
+        <!-- We nee dthe viewport to make sure the page is rendered in the right size on mobile devices -->
+        <meta name="viewport" content="width=device-width, initial-scale=1"> 
+
+        <!-- Get a nice font from google -->
+        <link href="https://fonts.googleapis.com/css?family=Alegreya+Sans:100,100i,300,300i,400,400i,500,500i,700,700i,800,800i,900,900i|Source+Code+Pro:200,300,400,500,600,700,900" rel="stylesheet">
+        
+        <!-- get jQuery to manipulate DOM objects during runtime -->
+        <script src="packages/jquery.js"></script>
+        
+        <style type="text/css">
+            html, body {
+                font-family: 'Alegreya Sans', sans-serif;
+                font-weight: 300;
+                line-height: 1.4;
+                font-size: 18;
+                margin: 0;
+                padding: 0;
+                color: white;
+                
+                /* Force the body height to 100% */
+                height: 100%;
+                
+                /* Forbit the user to scroll */
+                overflow: hidden;
+            }
+            
+            #main {
+                width: 100%;
+                height: 100%;
+
+                /* Make sure the center part of the background image covers the whole screen */
+                background-image: url(images/background.jpg);
+                background-position: center;
+                -webkit-background-size: cover;
+                -moz-background-size: cover;
+                -o-background-size: cover;
+                background-size: cover;
+                text-align: center;
+            }
+            
+            a:hover, a:visited, a:link, a:active {
+                /* remove underline style from links */
+                text-decoration: none;
+                color: white;
+            }
+            
+            #house_container {
+                /* positon the house in the center of the screen */
+                margin: auto;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                
+                /* image must be in the background, so that devices can be ontop of it */
+                width: 125px;
+                height: 125px;
+                background-image: url('images/house.png');
+                background-position: center;
+                -webkit-background-size: cover;
+                -moz-background-size: cover;
+                -o-background-size: cover;
+                background-size: cover;
+            }
+            
+            #no_data_devices {
+                /* devices that do not provide gps data are position on the bottom right */
+                position: absolute;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                height: 50px;
+                text-align: right;
+            }
+            
+            .person_container {
+                /* positon the persons in the center of the screen */
+                margin: auto;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                width: 55px;
+                height: 65px;
+                text-align: center;
+            }
+            
+            .circle {
+                /* positon the circles in the center of the screen */
+                margin: auto;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+            }
+            
+            #header {
+                /* Make a nice header on the top left, fixed */
+                position: fixed;
+                font-size: 150%;
+                font-weight: 600;
+                padding-left: 10px;
+                padding-top: 5px;
+            }
+            
+            #footer {
+                /* Make a nice footer on the bottom left, fixed */
+                position: fixed;
+                bottom: 0px;
+                font-size: 80%;
+                font-weight: 200;
+                padding-left: 10px;
+                padding-bottom: 5px;
+            }
+
+        </style>
+        <script type="text/javascript">
+            
+            // global variables
+            var outer_radius = 1000;
+            var inner_radius = 100;
+            var api_response_json = [];
+            
+            function window_resized() {
+                // this function is called every time the user resizes the window
+                // each time this is done all devices on the radar need to be redrawn
+                
+                // If the user is not home, he must be placed between the inner and outer circle
+                // get the radius of it
+                inner_radius = $("#inner_circle").width();
+                outer_radius = $("#outer_circle").width();
+            
+                // if not all cicles fit on the screen, make sure we show the users position in a 
+                // visible area
+                var window_height = $( window ).height();
+                if (window_height < outer_radius) {
+                    outer_radius = window_height;
+                }
+                if (window_height < inner_radius) {
+                    inner_radius = window_height;
+                }
+                
+                // redraw the devices
+                draw_persons();
+            }
+            
+            function draw_persons() {
+                // This function updates all devices/persons on the radar
+                // The device data is stored in the following format
+                //[
+                //    {
+                //        "name" :   "tom",
+                //        "id" :   207345,
+                //        "settings" :  {
+                //            "geoTrackingEnabled" :   false
+                //        },  
+                //        "location" :  { 
+                //            "stale" :   false,
+                //            "atHome" :   true, 
+                //            "bearingFromHome" :  {
+                //                "degrees" :   192.25, 
+                //                "radians" :   3.36
+                //            }, 
+                //            "relativeDistanceFromHomeFence" :   0.4
+                //        }
+                //    }
+                //]
+                
+                for(var i = 0; i < api_response_json.length; i++) {
+                
+                    // define the standard values as the case when we do not get geofencing data
+                    var bearingFromHome_inDegrees = 0;
+                    var relativeDistanceFromHomeFence = 1;
+                    var atHome = false;
+                    var validGeoData = false;
+                    
+                    // in case we got valid data, update variables with the data stored in the array
+                    if (api_response_json[i].settings.geoTrackingEnabled == true && api_response_json[i].location != null) {
+                        bearingFromHome_inDegrees = api_response_json[i].location.bearingFromHome.degrees;
+                        relativeDistanceFromHomeFence = api_response_json[i].location.relativeDistanceFromHomeFence;
+                        atHome = api_response_json[i].location.atHome;
+                        validGeoData = true;
+                    }
+                    
+                    // call new_person function to update device location
+                    new_persion(api_response_json[i].name, bearingFromHome_inDegrees, relativeDistanceFromHomeFence, atHome, api_response_json[i].id, validGeoData);
+                    
+                    // To Do:
+                    // device is deleted while radar is displayed
+                }
+            }
+            
+            // Check if an object with the given id exits in the document
+            jQuery.fn.exists = function(){return this.length>0;}
+
+            function new_persion(name, bearingFromHome_inDegrees, relativeDistanceFromHomeFence, atHome, id, validGeoData) {
+                // This function draws/updates a device on the radar.
+                // It takes the following parameter:
+                // -------------------------------------
+                // device name: String
+                // angle between the user and home: Degrees [0, 360]
+                // distance between user and home [0, 1]
+                // status if user is at home [true, false]
+                // status if device is providing valid geofancing data: [true, false]
+                
+                // Defines status of device
+                // at home, on the radar, or no data
+                var appendToObject = "main";
+                if (validGeoData == false) {
+                    appendToObject = "no_data_devices";
+                }
+                else if (atHome == true) {
+                    appendToObject = "house_container";
+                }
+                
+                // Check if device exits already on radar, if not include it
+                if( !$('#person_' + id).exists() ) {
+                    $("#" + appendToObject).append("<div id='person_" + id + "' class='person_container'><img id='image_" + id + "' src='images/person.png' style='width: 40px'/><br><div id='name_" + id + "'><div></div>");
+                }
+                
+                // Change the name of the device
+                $('#name_' + id).html(name);
+                
+                // If no geo data is given, change icon of person
+                var image_url = "person";
+                if (validGeoData == false) {
+                    image_url = "person_questionmark";
+                }
+                
+                // To Do:
+                // find out who is the current viewer 
+                if (name == "ina") {
+                    image_url += "_me";
+                    $('#name_' + id).css('color', '#fffc64');
+                }
+                else {
+                    $('#name_' + id).css('color', '#ffffff');
+                }
+                
+                $('#image_' + id).attr('src', "images/" + image_url + ".png");
+                
+                // Position person on radar
+                if(atHome == false && validGeoData == true) {
+                    var radius = relativeDistanceFromHomeFence * (outer_radius - inner_radius) + inner_radius - 15;
+                    var alpha = 90.0 - bearingFromHome_inDegrees;
+                    var x = radius * Math.cos(alpha * Math.PI / 180.0);
+                    var y = radius * Math.sin(alpha * Math.PI / 180.0);
+                    
+                    // Undo what happened before
+                    $('#person_' + id).css('position', 'absolute');
+
+                    $('#person_' + id).css('bottom', y + "px");
+                    $('#person_' + id).css('left', x + "px");
+                }
+                else {
+                    // Undo what happened before
+                    $('#person_' + id).css('bottom', "0px");
+                    $('#person_' + id).css('left', "0px");
+                    
+                    $('#person_' + id).css('position', 'relative');
+                    $('#person_' + id).css('display', 'inline-block');
+                    $('#person_' + id).css('top', '50%');
+                    $('#person_' + id).css('transform', 'translate(0,-50%)');
+                } 
+                
+                // To Do:
+                // if people are leaving home, remaining people do not reorganize -> they are not centered
+            }
+            
+            function get_persons() {
+                // this function receives the real time position of the devices from the server
+                $.ajax({
+                    url: "https://my.tado.com/api/v2/homes/59391/mobileDevices?username=59391_nick&password=MWIwYjAwZGYtODU5OS00YWU1LTllZjgtOWQ2OGZhMWNhYjI5",
+                    dataType: "json",
+                    type: 'GET',
+                    success: function (response) {
+                        api_response_json = response;
+                        draw_persons();
+                    },
+                    error: function (xhr, ajaxOptions, thrownError) {
+                        alert("No internet connetion. Please try again.");
+                    }
+                });
+            }
+            
+            $(document).ready(function() {
+                // This function is called when the page is loaded
+                
+                // We need to encroll for window resizig events to position the devices new
+                $(window).bind('resize', window_resized);
+                window_resized();
+                
+                // Every 5 seconds the newest coordinates are requested
+                setInterval(function() {
+                  get_persons();
+                }, 5000);
+                get_persons();
+                
+                // preload important images
+                var img1 = new Image();
+				img1.src = "images/person.png";
+                var img2 = new Image();
+				img2.src = "images/person_questionmark.png";
+            });
+        </script>
+    </head>
+    <body>
+        <!-- Header top left -->
+        <div id='header'>Tado Demo</div>
+        
+        <div id='main'>
+            <!-- This container is the center of the page, it contains the house and devices that are at home -->
+            <div id='house_container'></div>
+            
+            <!-- 4 circles to represent the radar -->
+            <svg id='inner_circle' class='circle' style='width: 30vw; height: 30vw; max-width: 300px; max-height: 300px; min-width: 175px; min-height: 175px;'>
+                <circle cx="50%" cy="50%" r="49%" stroke="rgba(255, 255, 255, 0.75)" stroke-width="4" fill="white" fill-opacity="0.0"/>
+            </svg>
+            <svg class='circle' style='width: 50vw; height: 50vw; max-width: 680px; max-height: 680px; min-width: 225px; min-height: 225px;'>
+                <circle cx="50%" cy="50%" r="49%" stroke="rgba(255, 255, 255, 0.5)" stroke-width="3" fill="white" fill-opacity="0.0"/>
+            </svg>
+            <svg class='circle' style='width: 73vw; height: 73vw; max-width: 1050px; max-height: 1050px; min-width: 275px; min-height: 275px;'>
+                <circle cx="50%" cy="50%" r="49%" stroke="rgba(255, 255, 255, 0.25)" stroke-width="2" fill="white" fill-opacity="0.0"/>
+            </svg>
+            <svg id='outer_circle' class='circle' style='width: 95vw; height: 95vw; max-width: 1400px; max-height: 1400px; min-width: 320px; min-height: 320px;'>
+                <circle cx="50%" cy="50%" r="49%" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1" fill="white" fill-opacity="0.0"/>
+            </svg>
+
+            <!-- On the bottom right are the devices that do not transmit any geofencing location -->
+            <div id='no_data_devices'></div>
+        </div>
+        
+        <!-- Footer bottom left, link to homepage -->
+        <div id='footer'><a target="_blank" href='http://christian-poetter.com'>Made by Christian Poetter</a></div>
+        
+    </body>
+</html>
